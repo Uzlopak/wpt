@@ -1,0 +1,64 @@
+<!doctype html>
+<meta name="timeout" content="long">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/common/utils.js"></script>
+<script src="/common/dispatcher/dispatcher.js"></script>
+<script src="resources/helper.sub.js"></script>
+<script>
+promise_test(async t => {
+  const pageA = new RemoteContext(token());
+  const pageB = new RemoteContext(token());
+  const pageA2 = new RemoteContext(token());
+
+  const urlA = location.origin + executorPath + pageA.context_id;
+  const urlB = originCrossSite + executorPath + pageB.context_id;
+  const urlA2 = location.origin + executorPath + pageA2.context_id;
+
+  window.open(urlA, '_blank', 'noopener');
+  await pageA.execute_script(waitForPageShow);
+
+  await pageA.execute_script(() => {
+    // Register a dedicated worker.
+    let worker = new Worker('../resources/worker-with-broadcastchannel.js');
+    worker.postMessage({channelName: 'foo'});
+  });
+
+  window.open(urlA2, '_blank', 'noopener');
+
+  await pageA.execute_script(
+    (url) => {
+      prepareNavigation(() => {
+        location.href = url;
+      });
+    },
+    [urlB]
+  );
+
+  await pageB.execute_script(waitForPageShow);
+
+  let messageLength = await pageA2.execute_script(() => {
+    let messages = [];
+    let channel = new BroadcastChannel('foo');
+    channel.addEventListener('message', event => {
+      messages.push(event.data);
+    });
+    channel.postMessage('yay');
+    return messages.length;
+  });
+  // Assert that the message has not arrived when PageA is in bfcache.
+  assert_true(messageLength == 0);
+
+  await pageB.execute_script(
+    () => {
+      prepareNavigation(() => { history.back(); });
+    }
+  );
+
+  await pageA.execute_script(waitForPageShow);
+  await assert_bfcached(pageA);
+
+  // I would like to assert that the messages are now received. How????
+
+}, 'PageA should.');
+</script>
