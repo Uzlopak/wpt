@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<script src="utils.js"></script>
+<title>Page that checks if a popup opened by a fenced frame was loaded</title>
+
+<body>
+<script>
+  let [opened_key] = parseKeylist();
+  writeValueToServer(opened_key, 'loaded');
+</script>
+</body>
